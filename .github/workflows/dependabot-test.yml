@@ -74,7 +74,7 @@ jobs:
         if: env.UPDATES_FOUND == 'true'
         run: |
           echo "=== Downloaded OpenAPI Specs ==="
-          find openapi/ -name "openapi.json" -type f | while read file; do
+          find openapi/ -name "openapi.json" -o -name "openapi.yaml" -type f | while read file; do
             echo ""
             echo "File: $file"
             echo "Size: $(stat -c%s "$file") bytes"

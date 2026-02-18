@@ -375,7 +375,14 @@ function downloadSpecFromBranch(string owner, string repo, string branch, string
     return content is string ? content : string:fromBytes(content);
 }
 
-// Save spec to file
+// Detect file extension from content format
+function getFileExtension(string content) returns string {
+    string trimmedContent = content.trim();
+    boolean isJson = trimmedContent.startsWith("{") || trimmedContent.startsWith("[");
+    return isJson ? "json" : "yaml";
+}
+
+// Save spec to file - preserves original format (JSON or YAML)
 function saveSpec(string content, string localPath) returns error? {
     string dirPath = check file:parentPath(localPath);
     if !check file:test(dirPath, file:EXISTS) {
@@ -507,7 +514,11 @@ function processRelease(github:Client githubClient, Repository repo, github:Rele
 
     string apiVersion = getApiVersion(specContent, tagName);
     string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/" + apiVersion;
-    string localPath = versionDir + "/openapi.json";
+
+    // Detect file extension from content to preserve original format
+    string fileExtension = getFileExtension(specContent);
+    string localPath = versionDir + "/openapi." + fileExtension;
+    print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
     error? saveError = saveSpecAndMetadata(specContent, localPath, repo, apiVersion, versionDir);
     if saveError is error {
@@ -582,7 +593,11 @@ function processFileBasedRepo(Repository repo) returns UpdateResult|error? {
         print(string `UPDATE DETECTED! (${repo.lastVersion} -> ${apiVersion}, Type: ${updateType})`, "Info", 1);
 
         string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/" + apiVersion;
-        string localPath = versionDir + "/openapi.json";
+
+        // Detect file extension from content to preserve original format
+        string fileExtension = getFileExtension(specContent);
+        string localPath = versionDir + "/openapi." + fileExtension;
+        print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
         if !versionChanged && contentChanged {
             print(string `Content update in same version ${apiVersion} - replacing existing files`, "Info", 1);
@@ -685,7 +700,11 @@ function processRolloutBasedRepo(github:Client githubClient, Repository repo, st
         }
 
         string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/rollout-" + latestRollout;
-        string localPath = versionDir + "/openapi.json";
+
+        // Detect file extension from content to preserve original format
+        string fileExtension = getFileExtension(specContent);
+        string localPath = versionDir + "/openapi." + fileExtension;
+        print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
         if !rolloutChanged && contentChanged {
             print(string `Content update within rollout ${latestRollout} - replacing existing files`, "Info", 1);
