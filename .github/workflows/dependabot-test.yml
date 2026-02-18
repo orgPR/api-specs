@@ -1,0 +1,133 @@
+# Simplified workflow for testing OpenAPI spec downloads
+# This workflow only downloads specs and checks version extraction
+name: OpenAPI Dependabot (Test Mode)
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  test-spec-downloads:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    steps:
+      - name: Checkout api-specs repo
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Set up Ballerina
+        uses: ballerina-platform/setup-ballerina@v1.1.0
+        with:
+          version: 2201.13.1
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "ballerina-bot@users.noreply.github.com"
+          git config --global user.name "ballerina-bot"
+
+      - name: Run Dependabot Monitor
+        run: |
+          cd dependabot
+          bal clean
+
+          # Retry logic for transient Ballerina Central failures
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+            if bal run; then
+              echo "Build succeeded!"
+              break
+            fi
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Build failed, retrying in 30 seconds..."
+              sleep 30
+              rm -rf ~/.ballerina/repositories/central.ballerina.io/cache 2>/dev/null || true
+            else
+              echo "Build failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+          done
+
+          cd ..
+
+      - name: Check for updates
+        run: |
+          if [ -f "UPDATE_SUMMARY.txt" ]; then
+            echo "UPDATES_FOUND=true" >> $GITHUB_ENV
+            echo "Updates detected!"
+            echo "=== UPDATE SUMMARY ==="
+            cat UPDATE_SUMMARY.txt
+            echo "====================="
+          else
+            echo "UPDATES_FOUND=false" >> $GITHUB_ENV
+            echo "No updates found"
+          fi
+
+      - name: Show Downloaded Specs
+        if: env.UPDATES_FOUND == 'true'
+        run: |
+          echo "=== Downloaded OpenAPI Specs ==="
+          find openapi/ -name "openapi.json" -type f | while read file; do
+            echo ""
+            echo "File: $file"
+            echo "Size: $(stat -c%s "$file") bytes"
+            echo "First 20 lines:"
+            head -n 20 "$file"
+            echo "..."
+            echo "---"
+          done
+
+      - name: Show Metadata Files
+        if: env.UPDATES_FOUND == 'true'
+        run: |
+          echo "=== Metadata Files ==="
+          find openapi/ -name ".metadata.json" -type f | while read file; do
+            echo ""
+            echo "File: $file"
+            cat "$file"
+            echo "---"
+          done
+
+      - name: Create and Push Branch
+        if: env.UPDATES_FOUND == 'true'
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          BRANCH_NAME="openapi-update-test-${TIMESTAMP}"
+          echo "Creating branch: ${BRANCH_NAME}"
+          git checkout -b "${BRANCH_NAME}"
+          git add openapi/ repos.json UPDATE_SUMMARY.txt
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: Test OpenAPI specifications update"
+          git push -u origin "$BRANCH_NAME"
+          echo "Branch pushed successfully"
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo ""
+          echo "✅ Branch created: ${BRANCH_NAME}"
+          echo "Please review the changes in this branch to verify:"
+          echo "  1. Correct OpenAPI specs were downloaded"
+          echo "  2. Version extraction is working properly"
+          echo "  3. Files are in the correct directory structure"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== Test Summary ==="
+          echo "Updates found: ${{ env.UPDATES_FOUND }}"
+          if [ "${{ env.UPDATES_FOUND }}" = "true" ]; then
+            echo "Branch created: ${{ env.BRANCH_NAME }}"
+            echo ""
+            echo "Next steps:"
+            echo "  1. Review the branch in GitHub"
+            echo "  2. Check the logs above for version extraction details"
+            echo "  3. Verify the downloaded specs match expected versions"
+          fi

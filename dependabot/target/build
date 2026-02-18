@@ -1,0 +1,61 @@
+{
+  "last_build_time": 1771403409700,
+  "last_update_time": 1771403409700,
+  "last_bal_toml_update_time": 1771403392556,
+  "distribution_version": "2201.13.1",
+  "last_modified_time": {
+    "openapi_dependabot": 1771403392556
+  },
+  "last_build_options": {
+    "compilationOptions": {
+      "observabilityIncluded": false,
+      "dumpBir": false,
+      "cloud": "",
+      "dumpGraph": false,
+      "dumpRawGraphs": false
+    }
+  },
+  "src_meta_info": [
+    {
+      "file": "/Users/tharanij/Documents/GitHub/api-specs-eight/dependabot/main.bal",
+      "hash": "7e781dc566436d70ccb7eba3dde307a106f746584faf49e0f607e9baf6a22059",
+      "size": 30186,
+      "lastModifiedTime": 1771403357127
+    },
+    {
+      "file": "/Users/tharanij/Documents/GitHub/api-specs-eight/dependabot/Ballerina.toml",
+      "hash": "52f0c69b49e3e38d835d7924fa95e850e34c336c721567fe8b841a2512ed62e5",
+      "size": 148,
+      "lastModifiedTime": 1771403392556
+    }
+  ],
+  "target_exec_meta_info": {
+    "file": "/Users/tharanij/Documents/GitHub/api-specs-eight/dependabot/target/backup/bin/openapi_dependabot.jar",
+    "hash": "344ac55ed646a15f0ceffcc2bc9d3bc2e8e96581de33fc1a6064fb07a08dae9d",
+    "size": 59307369,
+    "lastModifiedTime": 1771403412656
+  },
+  "settings_meta_info": {
+    "file": "/Users/tharanij/.ballerina/Settings.toml",
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0,
+    "lastModifiedTime": 1764818857132
+  },
+  "ballerina_toml_meta_info": {
+    "file": "/Users/tharanij/Documents/GitHub/api-specs-eight/dependabot/Ballerina.toml",
+    "hash": "52f0c69b49e3e38d835d7924fa95e850e34c336c721567fe8b841a2512ed62e5",
+    "size": 148,
+    "lastModifiedTime": 1771403392556
+  },
+  "imports": [
+    "ballerina/crypto",
+    "ballerina/data.jsondata",
+    "ballerina/data.yaml",
+    "ballerina/file",
+    "ballerinax/github",
+    "ballerina/http",
+    "ballerina/io",
+    "ballerina/lang.regexp",
+    "ballerina/os"
+  ]
+}
