@@ -30,29 +30,6 @@ isolated function print(string message, string level, int indentation) {
     io:println(string `${spaces}[${level}] ${message}`);
 }
 
-// Helper function to get type name as string for logging
-isolated function getTypeName(json? value) returns string {
-    if value is () {
-        return "nil";
-    } else if value is string {
-        return "string";
-    } else if value is int {
-        return "int";
-    } else if value is float {
-        return "float";
-    } else if value is decimal {
-        return "decimal";
-    } else if value is boolean {
-        return "boolean";
-    } else if value is map<json> {
-        return "map<json>";
-    } else if value is json[] {
-        return "json[]";
-    } else {
-        return "json";
-    }
-}
-
 // Versioning strategy types
 const RELEASE_TAG = "release-tag";
 const FILE_BASED = "file-based";
@@ -182,102 +159,51 @@ function findLatestRollout(string owner, string repo, string branch, string base
     return maxRollout.toString();
 }
 
-// NEW: Extract version from OpenAPI spec using proper YAML/JSON parsing
+// Extract version from OpenAPI spec using proper YAML/JSON parsing
 function extractApiVersion(string content) returns string|error {
-    print("=== STARTING VERSION EXTRACTION (Using YAML/JSON Packages) ===", "DEBUG", 2);
-    print(string `Content length: ${content.length()} characters`, "DEBUG", 2);
-
-    // Show content preview
-    string preview = content.length() > 500 ? content.substring(0, 500) : content;
-    print("Content preview (first 500 chars):", "DEBUG", 2);
-    print(preview, "DEBUG", 3);
-    print("---", "DEBUG", 2);
-
     // Detect file format
     string trimmedContent = content.trim();
     boolean isJson = trimmedContent.startsWith("{") || trimmedContent.startsWith("[");
 
-    print(string `Detected format: ${isJson ? "JSON" : "YAML"}`, "DEBUG", 2);
-
     json parsedData = {};
 
     if isJson {
-        print("Attempting to parse as JSON...", "DEBUG", 2);
         json|error jsonResult = jsondata:parseString(content);
-
         if jsonResult is error {
-            print(string `JSON parsing failed: ${jsonResult.message()}`, "ERROR", 2);
-            print(string `Error details: ${jsonResult.toString()}`, "ERROR", 3);
             return error(string `Failed to parse JSON: ${jsonResult.message()}`);
         }
-
-        print("✓ JSON parsing successful!", "DEBUG", 2);
         parsedData = jsonResult;
-
     } else {
-        print("Attempting to parse as YAML...", "DEBUG", 2);
         json|error yamlResult = yaml:parseString(content);
-
         if yamlResult is error {
-            print(string `YAML parsing failed: ${yamlResult.message()}`, "ERROR", 2);
-            print(string `Error details: ${yamlResult.toString()}`, "ERROR", 3);
             return error(string `Failed to parse YAML: ${yamlResult.message()}`);
         }
-
-        print("✓ YAML parsing successful!", "DEBUG", 2);
         parsedData = yamlResult;
     }
 
-    // Log the parsed structure
-    print("Parsed data structure:", "DEBUG", 2);
-    print(parsedData.toJsonString(), "DEBUG", 3);
-
     // Extract version from info.version field
-    print("Attempting to extract version from 'info.version'...", "DEBUG", 2);
-
     if parsedData is map<json> {
         json? infoField = parsedData["info"];
-        print(string `info field type: ${getTypeName(infoField)}`, "DEBUG", 3);
-        print(string `info field value: ${infoField.toString()}`, "DEBUG", 3);
-
         if infoField is () {
-            print("✗ 'info' field not found in parsed data", "ERROR", 2);
-            print("Available top-level keys:", "DEBUG", 3);
-            foreach string key in parsedData.keys() {
-                print(string `  - ${key}`, "DEBUG", 3);
-            }
             return error("'info' field not found in OpenAPI spec");
         }
 
         if infoField is map<json> {
             json? versionField = infoField["version"];
-            print(string `version field type: ${getTypeName(versionField)}`, "DEBUG", 3);
-            print(string `version field value: ${versionField.toString()}`, "DEBUG", 3);
-
             if versionField is () {
-                print("✗ 'version' field not found under 'info'", "ERROR", 2);
-                print("Available keys under 'info':", "DEBUG", 3);
-                foreach string key in infoField.keys() {
-                    print(string `  - ${key}`, "DEBUG", 3);
-                }
                 return error("'version' field not found under 'info' in OpenAPI spec");
             }
 
             if versionField is string {
-                print(string `✓ Successfully extracted version: '${versionField}'`, "INFO", 2);
-                print("=== VERSION EXTRACTION SUCCESS ===", "DEBUG", 2);
                 return versionField;
             } else {
-                print(string `✗ 'version' field is not a string. Type: ${getTypeName(versionField)}`, "ERROR", 2);
-                return error(string `'version' field has unexpected type: ${getTypeName(versionField)}`);
+                return error("'version' field is not a string");
             }
         } else {
-            print(string `✗ 'info' field is not a map. Type: ${getTypeName(infoField)}`, "ERROR", 2);
-            return error(string `'info' field has unexpected type: ${getTypeName(infoField)}`);
+            return error("'info' field is not a map");
         }
     } else {
-        print(string `✗ Parsed data is not a map. Type: ${getTypeName(parsedData)}`, "ERROR", 2);
-        return error(string `Parsed data has unexpected type: ${getTypeName(parsedData)}`);
+        return error("Parsed data is not a map");
     }
 }
 
@@ -427,10 +353,8 @@ function getApiVersion(string specContent, string tagName) returns string {
     string|error apiVersionResult = extractApiVersion(specContent);
     if apiVersionResult is error {
         print("Could not extract API version, using tag: " + tagName, "Warn", 1);
-        print(string `Fallback reason: ${apiVersionResult.message()}`, "DEBUG", 2);
         return tagName.startsWith("v") ? tagName.substring(1) : tagName;
     }
-    print("API Version: " + apiVersionResult, "Info", 1);
     return apiVersionResult;
 }
 
@@ -518,7 +442,6 @@ function processRelease(github:Client githubClient, Repository repo, github:Rele
     // Detect file extension from content to preserve original format
     string fileExtension = getFileExtension(specContent);
     string localPath = versionDir + "/openapi." + fileExtension;
-    print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
     error? saveError = saveSpecAndMetadata(specContent, localPath, repo, apiVersion, versionDir);
     if saveError is error {
@@ -578,7 +501,6 @@ function processFileBasedRepo(Repository repo) returns UpdateResult|error? {
 
     if apiVersionResult is error {
         print("Could not extract API version from spec content", "Error", 1);
-        print(string `Error details: ${apiVersionResult.message()}`, "ERROR", 2);
         print("Skipping this repository - please check the spec format", "Warn", 1);
         return error("Cannot extract version from spec");
     }
@@ -597,7 +519,6 @@ function processFileBasedRepo(Repository repo) returns UpdateResult|error? {
         // Detect file extension from content to preserve original format
         string fileExtension = getFileExtension(specContent);
         string localPath = versionDir + "/openapi." + fileExtension;
-        print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
         if !versionChanged && contentChanged {
             print(string `Content update in same version ${apiVersion} - replacing existing files`, "Info", 1);
@@ -692,11 +613,9 @@ function processRolloutBasedRepo(github:Client githubClient, Repository repo, st
         var apiVersionResult = extractApiVersion(specContent);
         if apiVersionResult is error {
             print("Could not extract API version from spec, using rollout number", "Warn", 1);
-            print(string `Error details: ${apiVersionResult.message()}`, "DEBUG", 2);
             apiVersion = latestRollout;
         } else {
             apiVersion = apiVersionResult;
-            print(string `API Version: ${apiVersion}`, "Info", 1);
         }
 
         string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/rollout-" + latestRollout;
@@ -704,7 +623,6 @@ function processRolloutBasedRepo(github:Client githubClient, Repository repo, st
         // Detect file extension from content to preserve original format
         string fileExtension = getFileExtension(specContent);
         string localPath = versionDir + "/openapi." + fileExtension;
-        print(string `Detected format: ${fileExtension}`, "DEBUG", 2);
 
         if !rolloutChanged && contentChanged {
             print(string `Content update within rollout ${latestRollout} - replacing existing files`, "Info", 1);
