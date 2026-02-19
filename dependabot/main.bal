@@ -308,15 +308,48 @@ function getFileExtension(string content) returns string {
     return isJson ? "json" : "yaml";
 }
 
-// Save spec to file - preserves original format (JSON or YAML)
-function saveSpec(string content, string localPath) returns error? {
-    string dirPath = check file:parentPath(localPath);
+// Check if a spec file already exists in the directory (either .json or .yaml)
+function getExistingSpecFile(string dirPath) returns string|error? {
     if !check file:test(dirPath, file:EXISTS) {
-        check file:createDir(dirPath, file:RECURSIVE);
+        return (); // Directory doesn't exist, no existing file
     }
 
-    check io:fileWriteString(localPath, content);
-    print(string `Saved to ${localPath}`, "Info", 1);
+    string jsonPath = dirPath + "/openapi.json";
+    string yamlPath = dirPath + "/openapi.yaml";
+
+    if check file:test(jsonPath, file:EXISTS) {
+        return jsonPath;
+    }
+
+    if check file:test(yamlPath, file:EXISTS) {
+        return yamlPath;
+    }
+
+    return (); // No existing spec file found
+}
+
+// Save spec to file - preserves original format (JSON or YAML)
+// Now checks for existing files and uses the existing format if found
+function saveSpec(string content, string localPath) returns error? {
+    string dirPath = check file:parentPath(localPath);
+
+    // Check if a spec file already exists
+    string|error? existingFile = getExistingSpecFile(dirPath);
+
+    string pathToWrite = localPath;
+    if existingFile is string {
+        // Use the existing file path instead of the new one
+        print(string `Found existing spec file: ${existingFile}, updating it instead`, "Info", 1);
+        pathToWrite = existingFile;
+    } else {
+        // No existing file, create directory if needed
+        if !check file:test(dirPath, file:EXISTS) {
+            check file:createDir(dirPath, file:RECURSIVE);
+        }
+    }
+
+    check io:fileWriteString(pathToWrite, content);
+    print(string `Saved to ${pathToWrite}`, "Info", 1);
     return;
 }
 
@@ -356,6 +389,21 @@ function getApiVersion(string specContent, string tagName) returns string {
         return tagName.startsWith("v") ? tagName.substring(1) : tagName;
     }
     return apiVersionResult;
+}
+
+// Helper: Determine the actual file path to use (checks for existing files)
+function determineFilePath(string versionDir, string specContent) returns string|error {
+    // Check if a spec file already exists
+    string|error? existingFile = getExistingSpecFile(versionDir);
+
+    if existingFile is string {
+        // Use existing file's path
+        return existingFile;
+    }
+
+    // No existing file, determine extension from content
+    string fileExtension = getFileExtension(specContent);
+    return versionDir + "/openapi." + fileExtension;
 }
 
 // Helper: Save spec and create metadata
@@ -439,9 +487,8 @@ function processRelease(github:Client githubClient, Repository repo, github:Rele
     string apiVersion = getApiVersion(specContent, tagName);
     string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/" + apiVersion;
 
-    // Detect file extension from content to preserve original format
-    string fileExtension = getFileExtension(specContent);
-    string localPath = versionDir + "/openapi." + fileExtension;
+    // Determine the actual file path (checks for existing files first)
+    string localPath = check determineFilePath(versionDir, specContent);
 
     error? saveError = saveSpecAndMetadata(specContent, localPath, repo, apiVersion, versionDir);
     if saveError is error {
@@ -516,9 +563,8 @@ function processFileBasedRepo(Repository repo) returns UpdateResult|error? {
 
         string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/" + apiVersion;
 
-        // Detect file extension from content to preserve original format
-        string fileExtension = getFileExtension(specContent);
-        string localPath = versionDir + "/openapi." + fileExtension;
+        // Determine the actual file path (checks for existing files first)
+        string localPath = check determineFilePath(versionDir, specContent);
 
         if !versionChanged && contentChanged {
             print(string `Content update in same version ${apiVersion} - replacing existing files`, "Info", 1);
@@ -620,9 +666,8 @@ function processRolloutBasedRepo(github:Client githubClient, Repository repo, st
 
         string versionDir = "../openapi/" + repo.vendor + "/" + repo.api + "/rollout-" + latestRollout;
 
-        // Detect file extension from content to preserve original format
-        string fileExtension = getFileExtension(specContent);
-        string localPath = versionDir + "/openapi." + fileExtension;
+        // Determine the actual file path (checks for existing files first)
+        string localPath = check determineFilePath(versionDir, specContent);
 
         if !rolloutChanged && contentChanged {
             print(string `Content update within rollout ${latestRollout} - replacing existing files`, "Info", 1);
